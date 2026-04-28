@@ -1,36 +1,39 @@
 version: 2
+# Quiet mode: at most 1 grouped PR per ecosystem per month.
+# Re-tune (or split groups) once the project is past MVP.
 updates:
   - package-ecosystem: "pip"
     directory: "/backend"
     schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 5
+      interval: "monthly"
+    open-pull-requests-limit: 1
     labels: ["deps", "backend"]
     commit-message:
       prefix: "chore(deps)"
+    groups:
+      backend-all:
+        patterns: ["*"]
 
   - package-ecosystem: "npm"
     directory: "/frontend"
     schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 5
+      interval: "monthly"
+    open-pull-requests-limit: 1
     labels: ["deps", "frontend"]
     commit-message:
       prefix: "chore(deps)"
     groups:
-      next-react:
-        patterns:
-          - "next"
-          - "eslint-config-next"
-          - "react"
-          - "react-dom"
-          - "@types/react"
-          - "@types/react-dom"
+      frontend-all:
+        patterns: ["*"]
 
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "monthly"
+    open-pull-requests-limit: 1
     labels: ["deps", "ci"]
     commit-message:
       prefix: "chore(ci)"
+    groups:
+      actions-all:
+        patterns: ["*"]
