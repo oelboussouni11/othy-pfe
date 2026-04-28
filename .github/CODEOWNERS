@@ -1,0 +1,19 @@
+# Each line is a glob → list of owners. The last matching pattern wins.
+# Replace @your-github-username with real handles before pushing.
+
+# Default owner for everything
+*                           @your-github-username
+
+# Backend
+/backend/                   @your-github-username
+/audit_engine/              @your-github-username
+
+# Frontend
+/frontend/                  @your-github-username
+
+# Infra / CI / docs (often shared)
+/.github/                   @your-github-username
+/docker-compose.yml         @your-github-username
+/Makefile                   @your-github-username
+/BUILD.md                   @your-github-username
+/ARCHITECTURE.md            @your-github-username
