@@ -61,7 +61,7 @@ test("login flow lands on /dashboard and shows the user", async ({ page }) => {
   await page.goto("/login");
 
   await page.getByLabel("Email").fill("ada@example.com");
-  await page.getByLabel("Password").fill("correcthorse");
+  await page.getByLabel("Password", { exact: true }).fill("correcthorse");
   await page.getByRole("button", { name: "Sign in" }).click();
 
   await expect(page).toHaveURL(/\/dashboard$/);
@@ -74,7 +74,7 @@ test("register flow lands on /dashboard", async ({ page }) => {
 
   await page.getByLabel("Name").fill("Ada Lovelace");
   await page.getByLabel("Email").fill("ada@example.com");
-  await page.getByLabel("Password").fill("correcthorse");
+  await page.getByLabel("Password", { exact: true }).fill("correcthorse");
   await page.getByRole("button", { name: "Create account" }).click();
 
   await expect(page).toHaveURL(/\/dashboard$/);
@@ -99,9 +99,27 @@ test("login error from API surfaces inline", async ({ page }) => {
 
   await page.goto("/login");
   await page.getByLabel("Email").fill("ada@example.com");
-  await page.getByLabel("Password").fill("wrong-password");
+  await page.getByLabel("Password", { exact: true }).fill("wrong-password");
   await page.getByRole("button", { name: "Sign in" }).click();
 
   await expect(page.getByText("invalid credentials")).toBeVisible();
   await expect(page).toHaveURL(/\/login$/);
+});
+
+test("password visibility toggle reveals and hides the password", async ({ page }) => {
+  await mockAuth(page);
+  await page.goto("/login");
+
+  const password = page.getByLabel("Password", { exact: true });
+  const toggle = page.getByRole("button", { name: "Show password" });
+
+  await password.fill("correcthorse");
+  await expect(password).toHaveAttribute("type", "password");
+
+  await toggle.click();
+  await expect(password).toHaveAttribute("type", "text");
+  await expect(page.getByRole("button", { name: "Hide password" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Hide password" }).click();
+  await expect(password).toHaveAttribute("type", "password");
 });
