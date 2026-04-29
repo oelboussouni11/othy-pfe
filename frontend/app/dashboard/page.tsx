@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { Protected } from "@/components/auth/protected";
 import { useAuth } from "@/components/auth/auth-context";
 
@@ -32,9 +34,15 @@ function DashboardContent() {
           {user?.role}
         </p>
       </section>
-      <p className="text-xs text-muted-foreground">
-        Phase 2 placeholder — projects list lands in Phase 3.
-      </p>
+      <Link
+        href="/projects"
+        className="rounded-lg border border-border bg-card p-5 transition hover:bg-muted/50"
+      >
+        <p className="font-medium">Projects →</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Manage the sites you’re auditing.
+        </p>
+      </Link>
     </main>
   );
 }
