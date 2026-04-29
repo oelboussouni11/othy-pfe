@@ -34,8 +34,8 @@ test: test-be test-engine test-fe ## Run all tests
 test-be: ## Backend pytest
 	cd backend && .venv/bin/pytest -v
 
-test-engine: ## audit_engine pytest
-	cd backend && .venv/bin/pytest ../audit_engine/tests -v || true
+test-engine: ## audit_engine pytest (run from project root for correct PYTHONPATH)
+	backend/.venv/bin/pytest audit_engine/tests -v
 
 test-fe: ## Frontend Playwright
 	cd frontend && npm run test:e2e
@@ -45,6 +45,7 @@ lint: lint-be lint-fe ## Lint everything
 
 lint-be:
 	cd backend && .venv/bin/ruff check .
+	backend/.venv/bin/ruff check audit_engine
 
 lint-fe:
 	cd frontend && npm run lint
