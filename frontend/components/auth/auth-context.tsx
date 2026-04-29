@@ -2,7 +2,6 @@
 
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 
-import { ApiError } from "@/lib/api";
 import { authApi, type LoginInput, type RegisterInput, type User } from "@/lib/auth";
 
 type AuthState = {
@@ -23,10 +22,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     authApi
       .me()
       .then((u) => setUser(u))
-      .catch((e) => {
-        if (!(e instanceof ApiError) || e.status !== 401) console.error(e);
-        setUser(null);
-      })
+      .catch(() => setUser(null))
       .finally(() => setLoading(false));
   }, []);
 
