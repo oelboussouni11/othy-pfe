@@ -176,7 +176,7 @@ function ProjectDetail() {
 
           <section className="space-y-3">
             <h2 className="text-sm font-medium">Audits</h2>
-            <AuditsTable projectId={project.id} audits={audits} />
+            <AuditsTable projectId={project.id} audits={audits} onChange={loadAudits} />
           </section>
         </>
       ) : (

@@ -62,4 +62,5 @@ export const auditsApi = {
     }),
   get: (id: string) => api<AuditDetail>(`/audits/${id}`),
   diff: (id: string) => api<DiffResponse>(`/audits/${id}/diff`),
+  delete: (id: string) => api<void>(`/audits/${id}`, { method: "DELETE" }),
 };

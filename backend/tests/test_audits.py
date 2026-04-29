@@ -383,3 +383,46 @@ def test_export_html_404_for_other_user(client: TestClient, make_user, project_i
     auth_cookie(client, intruder_token)
     res = client.get(f"/audits/{audit_id}/export.html")
     assert res.status_code == 404
+
+
+# ---------- DELETE /audits/{id} ----------
+
+
+def test_delete_audit_removes_row(client: TestClient, project_id: str) -> None:
+    audit_id = client.post(
+        f"/projects/{project_id}/audits", json={"environment": "production"}
+    ).json()[0]["id"]
+
+    res = client.delete(f"/audits/{audit_id}")
+    assert res.status_code == 204
+    assert client.get(f"/audits/{audit_id}").status_code == 404
+
+
+def test_delete_audit_cancels_paired_run(client: TestClient, project_id: str) -> None:
+    """Deleting one half of a paired audit also drops the companion."""
+    body = client.post(f"/projects/{project_id}/audits", json={}).json()
+    production_id = next(a["id"] for a in body if a["environment"] == "production")
+    staging_id = next(a["id"] for a in body if a["environment"] == "staging")
+
+    res = client.delete(f"/audits/{production_id}")
+    assert res.status_code == 204
+    assert client.get(f"/audits/{production_id}").status_code == 404
+    assert client.get(f"/audits/{staging_id}").status_code == 404
+
+
+def test_delete_audit_404_for_other_user(
+    client: TestClient, make_user, project_id: str
+) -> None:
+    audit_id = client.post(
+        f"/projects/{project_id}/audits", json={"environment": "production"}
+    ).json()[0]["id"]
+
+    _, intruder_token = make_user(email="intruder@example.com")
+    auth_cookie(client, intruder_token)
+    res = client.delete(f"/audits/{audit_id}")
+    assert res.status_code == 404
+
+
+def test_delete_audit_404_for_unknown_id(client: TestClient, project_id: str) -> None:
+    res = client.delete("/audits/does-not-exist")
+    assert res.status_code == 404

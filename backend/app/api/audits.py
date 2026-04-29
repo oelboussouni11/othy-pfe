@@ -142,6 +142,32 @@ def get_audit_diff(
     )
 
 
+@router.delete("/audits/{audit_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_audit(
+    audit_id: str,
+    db: Session = Depends(get_db),
+    viewer: User = Depends(get_current_user),
+):
+    """Delete an audit (and its issues, diffs, and companion via cascade).
+
+    Acts as 'stop' for queued/running audits — the worker checks for the audit row
+    before proceeding and exits cleanly when it's gone, so deleting cancels the job.
+    """
+    audit = db.get(Audit, audit_id)
+    if audit is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="audit not found")
+
+    project = audit.project
+    if viewer.role != Role.admin and project.owner_id != viewer.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="audit not found")
+
+    # If this is half of a paired run, drop the companion too — a half-pair is meaningless.
+    if audit.companion is not None:
+        db.delete(audit.companion)
+    db.delete(audit)
+    db.commit()
+
+
 @router.get("/audits/{audit_id}/export.html", response_class=HTMLResponse)
 def export_audit_html(
     audit_id: str,

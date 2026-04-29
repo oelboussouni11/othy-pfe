@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 import { Protected } from "@/components/auth/protected";
@@ -25,9 +25,11 @@ export default function AuditDetailPage() {
 
 function AuditDetail() {
   const { id: projectId, auditId } = useParams<{ id: string; auditId: string }>();
+  const router = useRouter();
   const [audit, setAudit] = useState<AuditDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("issues");
+  const [deleting, setDeleting] = useState(false);
 
   const load = useCallback(() => {
     if (!auditId) return Promise.resolve();
@@ -71,16 +73,41 @@ function AuditDetail() {
 
   return (
     <main className="mx-auto flex min-h-screen max-w-5xl flex-col gap-6 px-6 py-12">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <BackLink projectId={projectId} />
-        <a
-          href={`${API_URL}/audits/${audit.id}/export.html`}
-          target="_blank"
-          rel="noreferrer noopener"
-          className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted"
-        >
-          Export HTML
-        </a>
+        <div className="flex flex-wrap gap-2">
+          <a
+            href={`${API_URL}/audits/${audit.id}/export.html`}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted"
+          >
+            Export HTML
+          </a>
+          <button
+            onClick={async () => {
+              const action =
+                audit.status === "queued" || audit.status === "running" ? "Stop" : "Delete";
+              if (!confirm(`${action} this audit?`)) return;
+              setDeleting(true);
+              try {
+                await auditsApi.delete(audit.id);
+                router.replace(`/projects/${projectId}`);
+              } catch (e) {
+                setError(e instanceof ApiError ? e.detail : "Failed to delete audit");
+                setDeleting(false);
+              }
+            }}
+            disabled={deleting}
+            className="rounded-md border border-destructive/40 px-3 py-1.5 text-sm text-destructive hover:bg-destructive/10 disabled:opacity-60"
+          >
+            {deleting
+              ? "…"
+              : audit.status === "queued" || audit.status === "running"
+                ? "Stop"
+                : "Delete"}
+          </button>
+        </div>
       </div>
 
       <SummaryCard audit={audit} />
