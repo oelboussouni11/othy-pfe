@@ -355,3 +355,31 @@ def test_paired_run_produces_no_go_when_production_500s_a_page(
     assert diff_res["verdict"] == "no_go", diff_res
     fields = {d["field"] for d in diff_res["diffs"]}
     assert "status_code" in fields, diff_res
+
+
+# ---------- HTML export ----------
+
+
+def test_export_html_returns_styled_report(client: TestClient, project_id: str) -> None:
+    audit_id = client.post(
+        f"/projects/{project_id}/audits", json={"environment": "production"}
+    ).json()[0]["id"]
+
+    res = client.get(f"/audits/{audit_id}/export.html")
+    assert res.status_code == 200
+    assert res.headers["content-type"].startswith("text/html")
+    body = res.text
+    assert "<!doctype html>" in body.lower()
+    assert "Acme" in body  # project name
+    assert "<style>" in body  # inline CSS, no external deps
+
+
+def test_export_html_404_for_other_user(client: TestClient, make_user, project_id: str) -> None:
+    audit_id = client.post(
+        f"/projects/{project_id}/audits", json={"environment": "production"}
+    ).json()[0]["id"]
+
+    _, intruder_token = make_user(email="intruder@example.com")
+    auth_cookie(client, intruder_token)
+    res = client.get(f"/audits/{audit_id}/export.html")
+    assert res.status_code == 404

@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import HTMLResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -12,6 +13,7 @@ from app.schemas.audit import (
     AuditOut,
     DiffResponse,
 )
+from app.services.export import render_audit
 from app.services.projects import NotFound, get_project
 from app.workers.audit_task import run_audit
 from app.workers.queue import get_queue
@@ -138,6 +140,22 @@ def get_audit_diff(
         verdict=primary.verdict,
         diffs=[AuditDiffOut.model_validate(d) for d in primary.diffs],
     )
+
+
+@router.get("/audits/{audit_id}/export.html", response_class=HTMLResponse)
+def export_audit_html(
+    audit_id: str,
+    db: Session = Depends(get_db),
+    viewer: User = Depends(get_current_user),
+):
+    """Standalone HTML report — opens correctly in any browser, no JS, inline CSS."""
+    audit = db.get(Audit, audit_id)
+    if audit is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="audit not found")
+    project = audit.project
+    if viewer.role != Role.admin and project.owner_id != viewer.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="audit not found")
+    return HTMLResponse(content=render_audit(audit))
 
 
 @router.get("/projects/{project_id}/audits", response_model=list[AuditOut])
