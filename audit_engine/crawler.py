@@ -65,8 +65,13 @@ async def _load_robots(client: httpx.AsyncClient, origin: str) -> RobotFileParse
         res = await client.get(f"{origin}/robots.txt", timeout=5.0)
         if res.status_code == 200:
             rp.parse(res.text.splitlines())
+        else:
+            # No rules / server error / redirect: treat as "allow all". An empty parse()
+            # also sets last_checked, which is what can_fetch() looks at to decide.
+            rp.parse([])
     except httpx.RequestError:
         log.debug("robots.txt fetch failed for %s; allowing all", origin)
+        rp.parse([])
     return rp
 
 
