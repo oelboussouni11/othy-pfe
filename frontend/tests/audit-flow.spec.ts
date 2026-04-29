@@ -161,30 +161,36 @@ test("audit detail shows summary, issues, diff, and pages tabs", async ({ page }
   await expect(page.getByText("status_code")).toBeVisible();
   await expect(page.getByText("500", { exact: true })).toBeVisible();
 
-  // Pages tab
+  // Pages tab — InsightsPanel also lists example URLs, so scope to the Pages table.
   await page.getByRole("button", { name: "Pages" }).click();
-  await expect(page.getByText("https://acme.com/missing")).toBeVisible();
+  await expect(
+    page.getByRole("table").getByText("https://acme.com/missing"),
+  ).toBeVisible();
 });
 
 test("audit detail polls while audit is running", async ({ page }) => {
-  let calls = 0;
   await page.route(`${API}/auth/me`, (r) =>
     r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(USER) }),
   );
 
+  // Time-based flip — first ~3s returns "running", then "completed". Survives
+  // React's double-effect in dev mode without making the test count-sensitive.
+  const start = Date.now();
   await page.route(`${API}/audits/a_prod`, (r) => {
-    calls++;
-    const status = calls < 2 ? "running" : "completed";
+    const status = Date.now() - start < 3000 ? "running" : "completed";
     return r.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ ...COMPLETED_AUDIT, status, verdict: status === "completed" ? "no_go" : null }),
+      body: JSON.stringify({
+        ...COMPLETED_AUDIT,
+        status,
+        verdict: status === "completed" ? "no_go" : null,
+      }),
     });
   });
 
   await page.goto("/projects/p_1/audits/a_prod");
 
   await expect(page.getByText("Running")).toBeVisible();
-  // After a polling tick (~2s), the status flips to Completed
-  await expect(page.getByText("Completed")).toBeVisible({ timeout: 8000 });
+  await expect(page.getByText("Completed")).toBeVisible({ timeout: 10000 });
 });

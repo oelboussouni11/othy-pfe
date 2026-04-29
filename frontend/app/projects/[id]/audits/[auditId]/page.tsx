@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { Protected } from "@/components/auth/protected";
 import { DiffTab } from "@/components/audits/diff-tab";
+import { InsightsPanel } from "@/components/audits/insights-panel";
 import { IssuesTab } from "@/components/audits/issues-tab";
 import { PagesTab } from "@/components/audits/pages-tab";
 import { SummaryCard } from "@/components/audits/summary-card";
@@ -111,6 +112,10 @@ function AuditDetail() {
       </div>
 
       <SummaryCard audit={audit} />
+
+      {audit.status === "completed" && audit.issues.length > 0 && (
+        <InsightsPanel issues={audit.issues} />
+      )}
 
       <nav className="flex border-b border-border">
         <TabButton active={tab === "issues"} onClick={() => setTab("issues")}>
