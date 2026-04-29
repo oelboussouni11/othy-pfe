@@ -71,13 +71,9 @@ async def test_crawler_respects_max_pages(httpserver: HTTPServer) -> None:
     links = "".join(f'<a href="/p{i}">x</a>' for i in range(20))
     httpserver.expect_request("/").respond_with_data(links, content_type="text/html")
     for i in range(20):
-        httpserver.expect_request(f"/p{i}").respond_with_data(
-            f"page {i}", content_type="text/html"
-        )
+        httpserver.expect_request(f"/p{i}").respond_with_data(f"page {i}", content_type="text/html")
 
-    pages = await crawl(
-        httpserver.url_for("/"), CrawlConfig(respect_robots=False, max_pages=5)
-    )
+    pages = await crawl(httpserver.url_for("/"), CrawlConfig(respect_robots=False, max_pages=5))
     assert len(pages) == 5
 
 

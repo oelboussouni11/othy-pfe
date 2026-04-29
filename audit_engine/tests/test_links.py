@@ -76,9 +76,7 @@ async def test_long_redirect_chain_is_warn(httpserver: HTTPServer) -> None:
     httpserver.expect_request("/r2").respond_with_data(
         "", status=301, headers={"Location": httpserver.url_for("/r3")}
     )
-    httpserver.expect_request("/r3").respond_with_data(
-        "", status=301, headers={"Location": final}
-    )
+    httpserver.expect_request("/r3").respond_with_data("", status=301, headers={"Location": final})
     httpserver.expect_request("/final").respond_with_data("ok", content_type="text/html")
 
     pages = [_page(httpserver.url_for("/"), f'<a href="{httpserver.url_for("/r1")}">r</a>')]

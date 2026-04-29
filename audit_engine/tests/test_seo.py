@@ -36,9 +36,7 @@ def test_good_page_yields_no_issues() -> None:
 
 
 def test_skips_pages_with_non_200_status() -> None:
-    page = CrawledPage(
-        url="https://x.test/", status_code=404, html=GOOD_PAGE, response_time_ms=10
-    )
+    page = CrawledPage(url="https://x.test/", status_code=404, html=GOOD_PAGE, response_time_ms=10)
     assert audit_seo([page]) == []
 
 
@@ -50,7 +48,9 @@ def test_missing_title_is_critical() -> None:
 
 
 def test_short_title_is_warning() -> None:
-    issues = audit_seo([_page("<html><head><title>short</title></head><body><h1>x</h1></body></html>")])
+    issues = audit_seo(
+        [_page("<html><head><title>short</title></head><body><h1>x</h1></body></html>")]
+    )
     assert "title_too_short" in _types(issues)
 
 
