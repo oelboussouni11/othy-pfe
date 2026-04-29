@@ -20,10 +20,11 @@ infra-down: ## Stop postgres + redis
 
 # ---------- Run ----------
 backend: ## Run FastAPI on :8000 with reload
-	cd backend && .venv/bin/uvicorn app.main:app --reload --port 8000
+	cd backend && PYTHONPATH=.. .venv/bin/uvicorn app.main:app --reload --port 8000
 
-worker: ## Run RQ worker (Phase 4+)
-	cd backend && .venv/bin/rq worker audits --url $$(grep -E '^REDIS_URL=' ../.env | cut -d= -f2-)
+worker: ## Run RQ worker (Phase 4+). OBJC_DISABLE_INITIALIZE_FORK_SAFETY is required on
+        ## macOS — without it, RQ's fork() of a thread-touched ObjC runtime aborts the work-horse.
+	cd backend && OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES PYTHONPATH=.. .venv/bin/rq worker audits --url $$(grep -E '^REDIS_URL=' ../.env | cut -d= -f2-)
 
 frontend: ## Run Next.js on :3000
 	cd frontend && npm run dev
