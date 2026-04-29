@@ -35,27 +35,54 @@ def project_id(client: TestClient, make_user) -> Iterator[str]:
 # ---------- POST /projects/{id}/audits ----------
 
 
-def test_enqueue_audit_creates_row_and_queues(
+def test_enqueue_explicit_production_creates_one_audit(
     client: TestClient, queue: FakeQueue, project_id: str
 ) -> None:
     res = client.post(f"/projects/{project_id}/audits", json={"environment": "production"})
     assert res.status_code == 201, res.text
     body = res.json()
-    assert body["status"] == "queued"
-    assert body["environment"] == "production"
-    assert body["project_id"] == project_id
+    assert isinstance(body, list)
+    assert len(body) == 1
+    assert body[0]["status"] == "queued"
+    assert body[0]["environment"] == "production"
+    assert body[0]["companion_audit_id"] is None
     assert len(queue.jobs) == 1
     func, args, _ = queue.jobs[0]
     assert func.__name__ == "run_audit"
-    assert args == (body["id"],)
+    assert args == (body[0]["id"],)
 
 
-def test_enqueue_audit_defaults_to_production(
+def test_enqueue_default_creates_pair_when_project_has_both_urls(
     client: TestClient, queue: FakeQueue, project_id: str
 ) -> None:
     res = client.post(f"/projects/{project_id}/audits", json={})
     assert res.status_code == 201
-    assert res.json()["environment"] == "production"
+    body = res.json()
+    assert len(body) == 2
+
+    by_env = {a["environment"]: a for a in body}
+    assert "production" in by_env and "staging" in by_env
+    # Each side points at the other.
+    assert by_env["production"]["companion_audit_id"] == by_env["staging"]["id"]
+    assert by_env["staging"]["companion_audit_id"] == by_env["production"]["id"]
+    assert len(queue.jobs) == 2
+
+
+def test_enqueue_default_single_audit_when_no_staging_url(
+    client: TestClient, queue: FakeQueue, make_user
+) -> None:
+    _, token = make_user()
+    auth_cookie(client, token)
+    pid = client.post("/projects", json={"name": "X", "production_url": "https://x.com"}).json()[
+        "id"
+    ]
+
+    res = client.post(f"/projects/{pid}/audits", json={})
+    assert res.status_code == 201
+    body = res.json()
+    assert len(body) == 1
+    assert body[0]["environment"] == "production"
+    assert len(queue.jobs) == 1
 
 
 def test_enqueue_audit_rejects_staging_when_no_staging_url(client: TestClient, make_user) -> None:
@@ -89,7 +116,9 @@ def test_enqueue_audit_for_other_users_project_returns_404(
 
 
 def test_get_audit_returns_status_and_empty_issues(client: TestClient, project_id: str) -> None:
-    audit_id = client.post(f"/projects/{project_id}/audits", json={}).json()["id"]
+    audit_id = client.post(
+        f"/projects/{project_id}/audits", json={"environment": "production"}
+    ).json()[0]["id"]
     res = client.get(f"/audits/{audit_id}")
     assert res.status_code == 200
     body = res.json()
@@ -107,7 +136,9 @@ def test_get_audit_404_for_unknown_id(client: TestClient, project_id: str) -> No
 def test_get_audit_404_for_other_users_audit(
     client: TestClient, make_user, project_id: str
 ) -> None:
-    audit_id = client.post(f"/projects/{project_id}/audits", json={}).json()["id"]
+    audit_id = client.post(
+        f"/projects/{project_id}/audits", json={"environment": "production"}
+    ).json()[0]["id"]
 
     _, intruder_token = make_user(email="intruder@example.com")
     auth_cookie(client, intruder_token)
@@ -116,7 +147,9 @@ def test_get_audit_404_for_other_users_audit(
 
 
 def test_admin_can_see_other_users_audit(client: TestClient, make_user, project_id: str) -> None:
-    audit_id = client.post(f"/projects/{project_id}/audits", json={}).json()["id"]
+    audit_id = client.post(
+        f"/projects/{project_id}/audits", json={"environment": "production"}
+    ).json()[0]["id"]
 
     _, admin_token = make_user(email="admin@example.com", role=Role.admin)
     auth_cookie(client, admin_token)
@@ -125,8 +158,8 @@ def test_admin_can_see_other_users_audit(client: TestClient, make_user, project_
 
 
 def test_list_audits_for_project(client: TestClient, project_id: str) -> None:
-    client.post(f"/projects/{project_id}/audits", json={})
-    client.post(f"/projects/{project_id}/audits", json={})
+    client.post(f"/projects/{project_id}/audits", json={"environment": "production"})
+    client.post(f"/projects/{project_id}/audits", json={"environment": "production"})
 
     res = client.get(f"/projects/{project_id}/audits")
     assert res.status_code == 200
@@ -229,3 +262,96 @@ def test_broken_links_count_counts_only_failure_types() -> None:
         Issue(page_url="x", type="permanent_redirect", severity=Severity.info, message=""),
     ]
     assert _broken_links_count(issues) == 3
+
+
+# ---------- diff: paired audits + verdict via real worker ----------
+
+
+def test_diff_endpoint_pending_until_both_audits_complete(
+    client: TestClient, project_id: str
+) -> None:
+    res = client.post(f"/projects/{project_id}/audits", json={})
+    audits = res.json()
+    production_id = next(a["id"] for a in audits if a["environment"] == "production")
+
+    diff = client.get(f"/audits/{production_id}/diff").json()
+    assert diff["pair_complete"] is False
+    assert diff["verdict"] is None
+    assert diff["diffs"] == []
+
+
+def test_diff_endpoint_404_for_other_user(client: TestClient, make_user, project_id: str) -> None:
+    pid = client.post(f"/projects/{project_id}/audits", json={}).json()[0]["id"]
+    _, intruder_token = make_user(email="intruder@example.com")
+    auth_cookie(client, intruder_token)
+    res = client.get(f"/audits/{pid}/diff")
+    assert res.status_code == 404
+
+
+def test_diff_endpoint_400_for_unpaired_audit(client: TestClient, project_id: str) -> None:
+    audit_id = client.post(
+        f"/projects/{project_id}/audits", json={"environment": "production"}
+    ).json()[0]["id"]
+    res = client.get(f"/audits/{audit_id}/diff")
+    assert res.status_code == 400
+
+
+@pytest.fixture
+def staging_server() -> Iterator[HTTPServer]:
+    """A second HTTPServer instance so staging + production share path structure."""
+    server = HTTPServer(host="127.0.0.1", port=0)
+    server.start()
+    yield server
+    server.stop()
+
+
+def test_paired_run_produces_no_go_when_production_500s_a_page(
+    client: TestClient,
+    queue: FakeQueue,
+    db_factory,
+    make_user,
+    httpserver: HTTPServer,
+    staging_server: HTTPServer,
+) -> None:
+    """End-to-end: staging serves /api with 200, production with 500. Verdict = no-go."""
+    # Staging at /, /api — both healthy
+    staging_server.expect_request("/").respond_with_data(
+        "<html><head><title>Acme — pre-launch QA platform for serious teams</title></head>"
+        '<body><a href="/api">api</a></body></html>',
+        content_type="text/html",
+    )
+    staging_server.expect_request("/api").respond_with_data("ok", content_type="text/html")
+
+    # Production at /, /api — /api regressed to 500
+    httpserver.expect_request("/").respond_with_data(
+        "<html><head><title>Acme — pre-launch QA platform for serious teams</title></head>"
+        '<body><a href="/api">api</a></body></html>',
+        content_type="text/html",
+    )
+    httpserver.expect_request("/api").respond_with_data("oops", status=500)
+
+    _, token = make_user(email="pair@example.com")
+    auth_cookie(client, token)
+    pid = client.post(
+        "/projects",
+        json={
+            "name": "Pair",
+            "production_url": httpserver.url_for("/"),
+            "staging_url": staging_server.url_for("/"),
+        },
+    ).json()["id"]
+
+    audits = client.post(f"/projects/{pid}/audits", json={}).json()
+    production_id = next(a["id"] for a in audits if a["environment"] == "production")
+
+    # Drain the queue: runs both audits + triggers diff. We swap to db_factory so the
+    # worker creates its own session that won't conflict with the test's session.
+    for func, args, _ in queue.jobs:
+        func(*args, session_factory=db_factory)
+    queue.jobs.clear()
+
+    diff_res = client.get(f"/audits/{production_id}/diff").json()
+    assert diff_res["pair_complete"] is True, diff_res
+    assert diff_res["verdict"] == "no_go", diff_res
+    fields = {d["field"] for d in diff_res["diffs"]}
+    assert "status_code" in fields, diff_res

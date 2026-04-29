@@ -119,5 +119,24 @@ def run_audit(
         audit.status = AuditStatus.completed
         audit.finished_at = _now()
         db.commit()
+
+        _maybe_run_diff(db, audit)
     finally:
         db.close()
+
+
+def _maybe_run_diff(db: Session, audit: Audit) -> None:
+    """If both halves of a paired run are completed, trigger the diff pass.
+
+    Either side completing last lands here. We always run diff against the production
+    audit (the diff "owner") regardless of which side called us in.
+    """
+    # Local import: services/diff.py imports models too, this avoids cycles at import time.
+    from app.services.diff import both_audits_completed, run_diff_for_pair
+
+    companion = audit.companion
+    if not both_audits_completed(audit, companion):
+        return
+
+    production_id = audit.id if audit.environment == AuditEnvironment.production else companion.id
+    run_diff_for_pair(db, production_id)
