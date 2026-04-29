@@ -9,4 +9,7 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "W"]
-ignore = ["E501"]
+ignore = [
+    "E501",  # line length — handled by formatter
+    "B008",  # FastAPI Depends/Cookie/Query/Body all use call-in-default pattern
+]
