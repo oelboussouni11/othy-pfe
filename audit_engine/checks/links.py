@@ -102,9 +102,7 @@ async def audit_links(
     semaphore = asyncio.Semaphore(max_concurrency)
     async with httpx.AsyncClient(headers={"User-Agent": user_agent}) as client:
         unique = list(link_to_pages.keys())
-        results = await asyncio.gather(
-            *(_probe(client, url, semaphore, timeout) for url in unique)
-        )
+        results = await asyncio.gather(*(_probe(client, url, semaphore, timeout) for url in unique))
 
     issues: list[Issue] = []
     for link, (final_status, chain_len, first_redirect) in zip(unique, results, strict=True):

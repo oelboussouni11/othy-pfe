@@ -144,7 +144,7 @@ def _check_og(page: CrawledPage, soup: BeautifulSoup) -> Iterator[Issue]:
                 type=f"missing_{tag_name.replace(':', '_')}",
                 severity=Severity.warning,
                 message=f"{tag_name} is missing or empty",
-                recommendation=f"Add <meta property=\"{tag_name}\" content=\"...\"> for social previews.",
+                recommendation=f'Add <meta property="{tag_name}" content="..."> for social previews.',
             )
 
 
@@ -163,5 +163,5 @@ def _check_alt_text(page: CrawledPage, soup: BeautifulSoup) -> Iterator[Issue]:
             type="missing_alt_text",
             severity=Severity.warning,
             message=f"{missing} <img> tag(s) without non-empty alt",
-            recommendation="Add a descriptive alt for every image (or alt=\"\" for purely decorative).",
+            recommendation='Add a descriptive alt for every image (or alt="" for purely decorative).',
         )
